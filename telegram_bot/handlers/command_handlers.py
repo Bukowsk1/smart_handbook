@@ -1,11 +1,11 @@
-import requests
+import telebot
 from smart_handbook.api_clients.wikipedia_client import WikipediaClient
 
 # Создаём экземпляр клиента Wikipedia
 wikipedia_client = WikipediaClient()
 
 
-def register_handlers(bot):
+def register_handlers(bot: telebot.TeleBot) -> None:
     """
     Регистрирует все обработчики команд для бота.
     
@@ -28,7 +28,12 @@ def register_handlers(bot):
             Пример: "Привет! Я Умный Справочник. Чтобы получить определение, 
                      используйте команду /wiki <термин>. Например: /wiki Интеграл"
         """
-        raise NotImplementedError("Реализуй обработчик команды /start")
+        bot.send_message(
+            message.chat.id,
+            "Привет! Я Умный Справочник. Чтобы получить определение, "
+            "используйте команду /wiki <термин>. Например: /wiki Интеграл"
+        )
+        
     
     @bot.message_handler(commands=['help'])
     def help_command(message):
@@ -41,7 +46,11 @@ def register_handlers(bot):
             Пример: "Я могу найти краткое определение по любому термину из Wikipedia.
                      Просто используйте команду /wiki <термин>.\nПример: /wiki Эйлер"
         """
-        raise NotImplementedError("Реализуй обработчик команды /help")
+        bot.send_message(
+            message.chat.id,
+            "Я могу найти краткое определение по любому термину из Wikipedia. "
+            "Просто используйте команду /wiki <термин>.\nПример: /wiki Эйлер"
+        )
     
     @bot.message_handler(commands=['wiki'])
     def wiki_command(message):
@@ -58,9 +67,37 @@ def register_handlers(bot):
                - Если summary == None -> отправь "Термин '{term}' не найден в Wikipedia."
             5. Обработай исключения
         """
-        raise NotImplementedError("Реализуй обработчик команды /wiki")
+        # Извлекаем термин из сообщения
+        command_parts = message.text.split(' ', 1)
+        
+        if len(command_parts) < 2 or not command_parts[1].strip():
+            bot.send_message(
+                message.chat.id,
+                "Пожалуйста, укажите термин для поиска. Например: /wiki Интеграл"
+            )
+            return
+        
+        term = command_parts[1].strip()
+        
+        try:
+            summary = wikipedia_client.get_summary(term, lang="ru")
+            
+            if summary is not None:
+                bot.send_message(message.chat.id, summary)
+            else:
+                bot.send_message(
+                    message.chat.id,
+                    f"Термин '{term}' не найден в Wikipedia."
+                )
+        except Exception as e:
+            bot.send_message(
+                message.chat.id,
+                f"Произошла ошибка при поиске термина '{term}'. Попробуйте позже."
+            )
+        
     
-    @bot.message_handler(func=lambda message: message.text.startswith('/'))
+    @bot.message_handler(func=lambda message: message.text and message.text.startswith('/') and 
+                         message.text.split()[0][1:] not in ['start', 'help', 'wiki'])
     def unknown_command(message):
         """
         Обработчик неизвестных команд (любая команда, начинающаяся с /).
@@ -68,4 +105,7 @@ def register_handlers(bot):
         TODO:
             Отправь сообщение: "Неизвестная команда. Используйте /wiki <термин>."
         """
-        raise NotImplementedError("Реализуй обработчик неизвестных команд")
+        bot.send_message(
+            message.chat.id,
+            "Неизвестная команда. Используйте /wiki <термин>."
+        )
