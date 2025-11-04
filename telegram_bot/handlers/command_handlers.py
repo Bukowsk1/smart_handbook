@@ -1,7 +1,9 @@
 import telebot
+from telebot import types
 from smart_handbook.api_clients.wikipedia_client import WikipediaClient
+from telegram_bot.state import get_user_state, update_user_state
+MAX_LEN = 3900  # лимит Telegram ~4096
 
-# Создаём экземпляр клиента Wikipedia
 wikipedia_client = WikipediaClient()
 
 
@@ -54,46 +56,44 @@ def register_handlers(bot: telebot.TeleBot) -> None:
     
     @bot.message_handler(commands=['wiki'])
     def wiki_command(message):
-        """
-        Обработчик команды /wiki.
-        
-        TODO:
-            1. Извлеки термин
-            2. Если термин не указан:
-               - Отправь подсказку: "Пожалуйста, укажите термин для поиска..."
-            3. Получи термин
-            4. Вызови wikipedia_client.get_summary(term, lang="ru") в блоке try/except:
-               - Если summary не None -> отправь его пользователю
-               - Если summary == None -> отправь "Термин '{term}' не найден в Wikipedia."
-            5. Обработай исключения
-        """
-        # Извлекаем термин из сообщения
-        command_parts = message.text.split(' ', 1)
-        
-        if len(command_parts) < 2 or not command_parts[1].strip():
+        """Команда /wiki: отправляет краткое определение + кнопки."""
+        parts = message.text.split(' ', 1)
+        if len(parts) < 2 or not parts[1].strip():
             bot.send_message(
                 message.chat.id,
                 "Пожалуйста, укажите термин для поиска. Например: /wiki Интеграл"
             )
             return
-        
-        term = command_parts[1].strip()
-        
+        term = parts[1].strip()
+
+        chat_id = message.chat.id
+        state = get_user_state(chat_id)
+
         try:
             summary = wikipedia_client.get_summary(term, lang="ru")
-            
-            if summary is not None:
-                bot.send_message(message.chat.id, summary)
-            else:
-                bot.send_message(
-                    message.chat.id,
-                    f"Термин '{term}' не найден в Wikipedia."
-                )
-        except Exception as e:
-            bot.send_message(
-                message.chat.id,
-                f"Произошла ошибка при поиске термина '{term}'. Попробуйте позже."
+            full_text = wikipedia_client.get_full_article(term, lang="ru")
+            article_url = wikipedia_client.get_article_url(term, lang="ru")
+
+            if not summary and not full_text:
+                bot.send_message(chat_id, f"Термин '{term}' не найден в Wikipedia.")
+                return
+
+            update_user_state(
+                chat_id,
+                last_term=term,
+                display_mode='summary',
+                summary_text=_cut(summary),
+                full_text=_cut(full_text),
+                article_url=article_url,
             )
+
+            current = get_user_state(chat_id)
+            text_to_send = current['summary_text'] or current['full_text'] or ""
+            sent = bot.send_message(chat_id, text_to_send, reply_markup=_keyboard(current))
+            update_user_state(chat_id, last_message_id=sent.message_id)
+
+        except Exception:
+            bot.send_message(chat_id, f"Произошла ошибка при поиске термина '{term}'. Попробуйте позже.")
         
     
     @bot.message_handler(func=lambda message: message.text and message.text.startswith('/') and 
@@ -109,3 +109,21 @@ def register_handlers(bot: telebot.TeleBot) -> None:
             message.chat.id,
             "Неизвестная команда. Используйте /wiki <термин>."
         )
+
+def _cut(text: str | None) -> str:
+    """Обрезает текст до MAX_LEN символов."""
+    if not text:
+        return ""
+    return text if len(text) <= MAX_LEN else text[:MAX_LEN] + "…"
+
+def _keyboard(state: dict) -> types.InlineKeyboardMarkup:
+    """Создает клавиатуру с инлайн-кнопками."""
+    markup = types.InlineKeyboardMarkup(row_width=2)
+    toggle_text = 'Показать полный' if state.get('display_mode') == 'summary' else 'Показать кратко'
+    toggle_btn = types.InlineKeyboardButton(text=toggle_text, callback_data='wiki:toggle')
+    buttons = [toggle_btn]
+    article_url = state.get('article_url')
+    if article_url:
+        buttons.append(types.InlineKeyboardButton(text='Открыть статью', url=article_url))
+    markup.add(*buttons)
+    return markup
