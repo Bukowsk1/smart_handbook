@@ -1,35 +1,30 @@
 import os
-import logging
 from pathlib import Path
 
-from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler, filters
-from telegram_bot.handlers.command_handlers import start_command, help_command, wiki_command, unknown_command
-from telegram_bot.handlers.callback_handlers import handle_wiki_callback
-from telegram import Update
+import telebot
+from dotenv import load_dotenv
 
-# Настройка логирования
-logging.basicConfig(
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    level=logging.INFO
-)
-logger = logging.getLogger(__name__)
+from telegram_bot.handlers.command_handlers import register_handlers
 
 
 def main() -> None:
-    """Запускает бота."""
-    # Загрузка токена из переменной окружения
-    pass
+    """
+    Запускает бота.
+    
+    TODO:
+        1. Загрузи .env файл
+        2. Получи токен из переменной окружения
+        3. Проверь, что токен не пустой
+        4. Создай экземпляр бота
+        5. Зарегистрируй обработчики команд
+        6. Выведи сообщение о запуске
+        7. Запусти бота
+        8. Оберни создание и запуск бота в try/except
+    """
+    raise NotImplementedError(
+        "Реализуй функцию main() согласно заданию"
+    )
 
 
 if __name__ == "__main__":
-    # Убедитесь, что .env файл загружен, если используется python-dotenv
-    try:
-        from dotenv import load_dotenv
-
-        ENV_PATH = Path(__file__).resolve().parents[1] / ".env"
-        load_dotenv(ENV_PATH)
-        logger.info(".env файл успешно загружен.")
-    except ImportError:
-        logger.warning("Модуль python-dotenv не найден. Переменные окружения должны быть установлены вручную.")
-
     main()
